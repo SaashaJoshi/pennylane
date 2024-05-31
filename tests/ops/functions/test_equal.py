@@ -16,6 +16,7 @@ Unit tests for the equal function.
 Tests are divided by number of parameters and wires different operators take.
 """
 import itertools
+import re
 
 # pylint: disable=too-many-arguments, too-many-public-methods
 from copy import deepcopy
@@ -1158,7 +1159,9 @@ class TestEqual:
         """Test equal method with two operators with different arithmetic depth."""
         op1 = qml.RX(0.3, wires=0)
         op2 = qml.prod(op1, qml.RY(0.25, wires=1))
-        assert not qml.equal(op1, op2)
+        with pytest.raises(AssertionError, match=r"([\s\S]*?) and ([\s\S]*?) have different arithmatic depths "
+                                                 r"\d and \d}, repectively."):
+            assert_equal(op1, op2)
 
     def test_equal_with_unsupported_nested_operators_returns_false(self):
         """Test that the equal method with two operators with the same arithmetic depth (>0) returns
@@ -1171,7 +1174,8 @@ class TestEqual:
         assert op1.arithmetic_depth == op2.arithmetic_depth
         assert op1.arithmetic_depth > 0
 
-        assert not qml.equal(op1, op2)
+        with pytest.raises(AssertionError, match=r"Arithmatic depth of ([\s\S]*?) is greater than zero\."):
+            assert_equal(op1, op2)
 
     # Measurements test cases
     @pytest.mark.parametrize("ops", PARAMETRIZED_MEASUREMENTS_COMBINATIONS)
@@ -1188,7 +1192,9 @@ class TestEqual:
     @pytest.mark.parametrize("op2", PARAMETRIZED_MEASUREMENTS)
     def test_not_equal_operator_measurement(self, op1, op2):
         """Test operator not equal to measurement"""
-        assert not qml.equal(op1, op2)
+        with pytest.raises(AssertionError, match=f"op1 and op2 are of different types.  "
+                                                 f"Got ([\s\S]*?) and ([\s\S]*?)\."):
+            assert_equal(op1, op2)
 
 
 class TestMeasurementsEqual:
@@ -1459,14 +1465,18 @@ class TestSymbolicOpComparison:
 
         assert op1.arithmetic_depth == 1
         assert op2.arithmetic_depth == 2
-        assert qml.equal(op1, op2) is False
+        with pytest.raises(AssertionError, match=r"([\s\S]*?) and ([\s\S]*?) have different arithmatic depths "
+                                                 r"\d and \d}, repectively."):
+            assert_equal(op1, op2)
 
         op1 = ControlledSequence(base1, control=2)
         op2 = ControlledSequence(base2, control=2)
 
         assert op1.arithmetic_depth == 1
         assert op2.arithmetic_depth == 2
-        assert qml.equal(op1, op2) is False
+        with pytest.raises(AssertionError, match=r"([\s\S]*?) and ([\s\S]*?) have different arithmatic depths "
+                                                 r"\d and \d}, repectively."):
+            assert_equal(op1, op2)
 
     def test_comparison_of_base_not_implemented_returns_false(self):
         """Test that comparing SymbolicOps of base operators whose comparison is not yet implemented returns False"""
@@ -1620,7 +1630,8 @@ class TestSymbolicOpComparison:
         op3 = qml.adjoint(qml.PauliX(15))
 
         assert qml.equal(op1, op2)
-        assert not qml.equal(op1, op3)
+        with pytest.raises(AssertionError, match=r"Operators ([\s\S]*?) and ([\s\S]*?) have different adjoint\."):
+            assert_equal(op1, op3)
 
     def test_adjoint_comparison_with_tolerance(self):
         """Test that equal compares the parameters within a provided tolerance of the Adjoint class."""
@@ -1628,9 +1639,11 @@ class TestSymbolicOpComparison:
         op2 = qml.adjoint(qml.RX(1.2 + 1e-4, wires=0))
 
         assert qml.equal(op1, op2, atol=1e-3, rtol=0)
-        assert not qml.equal(op1, op2, atol=1e-5, rtol=0)
+        with pytest.raises(AssertionError, match=r"Operators ([\s\S]*?) and ([\s\S]*?) have different adjoint\."):
+            assert_equal(op1, op2, atol=1e-5, rtol=0)
         assert qml.equal(op1, op2, atol=0, rtol=1e-3)
-        assert not qml.equal(op1, op2, atol=0, rtol=1e-5)
+        with pytest.raises(AssertionError, match=r"Operators ([\s\S]*?) and ([\s\S]*?) have different adjoint\."):
+            assert_equal(op1, op2, atol=0, rtol=1e-5)
 
     def test_adjoint_base_op_comparison_with_interface(self):
         """Test that equal compares the parameters within a provided interface of the base operator of Adjoint class."""
@@ -1638,7 +1651,9 @@ class TestSymbolicOpComparison:
         op2 = qml.adjoint(qml.RX(npp.array(1.2), wires=0))
 
         assert qml.equal(op1, op2, check_interface=False, check_trainability=False)
-        assert not qml.equal(op1, op2, check_interface=True, check_trainability=False)
+        with pytest.raises(AssertionError, match=r"Operators ([\s\S]*?) and ([\s\S]*?) have different adjoint\."):
+            assert_equal(op1, op2, check_interface=True, check_trainability=False)
+
 
     def test_adjoint_base_op_comparison_with_trainability(self):
         """Test that equal compares the parameters within a provided trainability of the base operator of Adjoint class."""
@@ -1646,7 +1661,8 @@ class TestSymbolicOpComparison:
         op2 = qml.adjoint(qml.RX(npp.array(1.2, requires_grad=True), wires=0))
 
         assert qml.equal(op1, op2, check_interface=False, check_trainability=False)
-        assert not qml.equal(op1, op2, check_interface=False, check_trainability=True)
+        with pytest.raises(AssertionError, match=r"Operators ([\s\S]*?) and ([\s\S]*?) have different adjoint\."):
+            assert_equal(op1, op2, check_interface=False, check_trainability=True)
 
     @pytest.mark.parametrize("bases_bases_match", BASES)
     @pytest.mark.parametrize("params_params_match", PARAMS)
@@ -2349,8 +2365,12 @@ class TestHilbertSchmidt:
     @pytest.mark.parametrize("op, other_op", [(op1, op2)])
     def test_non_equal_data(self, op, other_op):
         """Test that differing parameters are found."""
-        assert qml.equal(op, other_op) is False
+        with pytest.raises(AssertionError, match=r"([\s\S]*?) and ([\s\S]*?) have different hyperparameters "
+                                                 r"([\s\S]*?) and ([\s\S]*?), respectively."):
+            assert_equal(op, other_op)
         other_op.data = op.data
+        # with pytest.raises(AssertionError, match=r"Operators ([\s\S]*?) and ([\s\S]*?) have different adjoint\."):
+
 
         op_tape = op.hyperparameters["v_tape"]
         new_tape = other_op.hyperparameters["v_tape"].bind_new_parameters(
