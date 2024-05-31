@@ -321,12 +321,13 @@ def _equal_operators(
     check_trainability=True,
     rtol=1e-5,
     atol=1e-9,
-):
+) -> Union[bool, str]:
     """Default function to determine whether two Operator objects are equal."""
     if not isinstance(
         op2, type(op1)
     ):  # clarifies cases involving PauliX/Y/Z (Observable/Operation)
         return False
+        # return (f"{op1} and {op2} are of different types {type(op1)} and {type(op2)}, repectively.")
 
     if isinstance(op1, qml.Identity):
         # All Identities are equivalent, independent of wires.
@@ -335,32 +336,36 @@ def _equal_operators(
         return True
 
     if op1.arithmetic_depth != op2.arithmetic_depth:
-        return False
+        return (f"{op1} and {op2} have different arithmatic depths {op1.arithmetic_depth} "
+                f"and {op2.arithmetic_depth}, repectively.")
 
     if op1.arithmetic_depth > 0:
         # Other dispatches cover cases of operations with arithmetic depth > 0.
         # If any new operations are added with arithmetic depth > 0, a new dispatch
         # should be created for them.
-        return False
+        return (f"Arithmatic depth of {op1} is greater than zero.")
     if not all(
         qml.math.allclose(d1, d2, rtol=rtol, atol=atol) for d1, d2 in zip(op1.data, op2.data)
     ):
         return False
     if op1.wires != op2.wires:
-        return False
+        return (f"{op1} and {op2} have different wires. Received {op1.wires} and {op2.wires}.")
 
     if op1.hyperparameters != op2.hyperparameters:
-        return False
+        return (f"{op1} and {op2} have different hyperparameters {op1.hyperparameters} "
+                f"and {op2.hyperparameters}, respectively.")
 
     if check_trainability:
         for params_1, params_2 in zip(op1.data, op2.data):
             if qml.math.requires_grad(params_1) != qml.math.requires_grad(params_2):
-                return False
+                return (f"{op1.data} and {op2.data} have different trainability.")
 
     if check_interface:
         for params_1, params_2 in zip(op1.data, op2.data):
             if qml.math.get_interface(params_1) != qml.math.get_interface(params_2):
-                return False
+                return (f"{op1} and {op2} have different interfaces for dispatch, "
+                        f"{qml.math.get_interface(params_1)} and {qml.math.get_interface(params_2)}, "
+                        "repectively.")
 
     return True
 
@@ -396,7 +401,8 @@ def _equal_controlled(op1: Controlled, op2: Controlled, **kwargs):
         op2.work_wires,
         op2.arithmetic_depth,
     ]:
-        return False
+        # return False
+        return (f"Operators {op1} and {op2} have unequal control wires.")
 
     return qml.equal(op1.base, op2.base, **kwargs)
 
@@ -415,19 +421,24 @@ def _equal_controlled_sequence(op1: ControlledSequence, op2: ControlledSequence,
 
 @_equal.register
 # pylint: disable=unused-argument
-def _equal_pow(op1: Pow, op2: Pow, **kwargs):
+def _equal_pow(op1: Pow, op2: Pow, **kwargs) -> Union[bool, str]:
     """Determine whether two Pow objects are equal"""
     check_interface, check_trainability = kwargs["check_interface"], kwargs["check_trainability"]
 
     if check_interface:
-        if qml.math.get_interface(op1.z) != qml.math.get_interface(op2.z):
-            return False
+        interface1 = qml.math.get_interface(op1.z)
+        interface2 = qml.math.get_interface(op2.z)
+        if interface1 != interface2:
+            # return False
+            return (f"Operators {op1} and {op2} have different interfaces.")
     if check_trainability:
         if qml.math.requires_grad(op1.z) != qml.math.requires_grad(op2.z):
-            return False
+            # return False
+            return (f"Operators {op1} and {op2} have different trainability.")
 
     if op1.z != op2.z:
-        return False
+        # return False
+        return (f"Operators {op1} and {op2} are unequal.")
 
     return qml.equal(op1.base, op2.base, **kwargs)
 
@@ -437,7 +448,9 @@ def _equal_pow(op1: Pow, op2: Pow, **kwargs):
 def _equal_adjoint(op1: Adjoint, op2: Adjoint, **kwargs):
     """Determine whether two Adjoint objects are equal"""
     # first line of top-level equal function already confirms both are Adjoint - only need to compare bases
-    return qml.equal(op1.base, op2.base, **kwargs)
+    if not qml.equal(op1.base, op2.base, **kwargs):
+        return (f"Operators {op1} and {op2} have different adjoint.")
+    return True
 
 
 @_equal.register
